@@ -20,12 +20,19 @@ class Player:
     @bet.setter
     def bet(self, value):
         difference = value - self._bet
-        if difference < 0:
+        if difference > 0:
             self.total_bet += difference
         self._bet = value
     
     def __repr__(self):
         return f'{self.__class__.__name__}(\'{self.name}\')'
+    
+    @property
+    def full_name(self):
+        n = self.name
+        if self.dealer:
+            n += ' (D)'
+        return n
 
 
 class Game:
@@ -73,7 +80,7 @@ class Game:
         while self.players[0].dealer is False:
             self.players.append(self.players.pop(0))
         
-        self.current_player = self.players[0]
+        self.current_player = self.players[1]
         sb = self.current_player
         self.bet(self.current_player, self.small_blind)
         bb = self.current_player
@@ -86,18 +93,22 @@ class Game:
     def evaluate_player(self, player):
         return self.evaluator.evaluate(player.hand + self.board)
 
-    def finish_round(self):
+    @staticmethod
+    def generate_side_pots(players):
         side_pots = {}
-        pot_order = sorted([x for x in self.players if not x.folded], key=lambda x: x.total_bet)
+        pot_order = sorted([x for x in players if not x.folded], key=lambda x: x.total_bet)
+        pot_dict = dict((x.total_bet, y+1) for y, x in enumerate(reversed(pot_order)))
         total_bet_delta = 0
         for n, player in enumerate(pot_order):
-            if player.total_bet == 0:
+            amount = (player.total_bet + total_bet_delta) * pot_dict[player.total_bet]
+            if amount <= 0:
                 continue
-
-            amount = (player.total_bet + total_bet_delta) * len(pot_order[n:])
             side_pots[amount] = pot_order[n:]
             total_bet_delta -= player.total_bet + total_bet_delta
-        print(side_pots)
+        return side_pots
+
+    def finish_round(self):
+        side_pots = self.generate_side_pots(self.players)
         earnings = {}
         for amount, players in side_pots.items():
             winners = []
@@ -111,7 +122,7 @@ class Game:
                     winners.append(p)
             for w in winners:
                 win_reason = self.evaluator.rank_meanings[winning_hand[0]]
-                earnings[amount // len(winners)] = (p, win_reason)
+                earnings[amount // len(winners)] = (w, win_reason)
         
         for amount, information in earnings.items():
             player, win_reason = information
@@ -119,7 +130,6 @@ class Game:
         
         self.round_win_info = earnings
         self.round_ended = True
-
 
     def check(self, player):
         if player.bet == self.current_bet:
@@ -179,18 +189,18 @@ class Game:
         else:
             self.finish_round()
         
-        while self.players[0].dealer is False:
-            self.players.append(self.players.pop(0))
-        
         for player in self.players:
             player.bet = 0
-            player.folded = False
+            player.made_action = False
 
         self.current_bet = 0
 
-        d = self.current_player
-        self.rotate_player()
-        d.made_action = False
+        self.current_player = self.players[1]
+        while self.current_player.folded:
+            self.current_player = self.players[self.players.index(self.current_player)+1]
+
+
+        
 
 
 players = [Player('John'), Player('Bob'), Player('Daniel'), Player('Matthew')]
@@ -199,6 +209,7 @@ game = Game(players=players, chips=10000)
 
 game.initialize_round()
 while not game.round_ended:
+    print(', '.join([n.full_name for n in game.players]))
     for player in game.players_to_act():
         print("===== {} =====".format(player.name))
         print("Pot: {}".format(game.pot))
@@ -219,7 +230,6 @@ while not game.round_ended:
     game.next_betting_round()
 
 earnings = game.round_win_info
-print(earnings)
 for amount, information in earnings.items():
     player, reason = information
     print("{} won {} chips ({}) with {}".format(player.name, amount, reason, ''.join(map(str, player.hand))))
