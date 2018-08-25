@@ -3,6 +3,7 @@ from discord.ext import commands
 import discord
 import asyncio
 import collections
+import logging
 
 
 class Bot(commands.Bot):
@@ -187,6 +188,10 @@ async def poker_game(ctx, bot, tournament_info):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     bot = Bot('?')
     bot.add_cog(Poker(bot))
-    bot.run('NDgxNDE1MDI4MjMxMjQxNzQz.Dl2AaQ.Jhtk6v7Jd_XG2x9XIUyxnciTpLI')
+    file = open('token.txt')
+    token = file.read().strip()
+    file.close()
+    bot.run(token)
