@@ -3,10 +3,11 @@ from discord.ext import commands
 import discord
 import asyncio
 import collections
+import logging
 
 
 class Bot(commands.Bot):
-    
+
     async def on_ready(self):
         print(f'{self.user.name} is online')
         print(f'https://discordapp.com/api/oauth2/authorize?client_id={self.user.id}&permissions=-1&scope=bot')
@@ -39,7 +40,7 @@ class Poker:
 
         # GET STARTING CHIPS
         chips_question_msg = await ctx.send(self.chips_question)
-        
+
         try:
             msg = await self.bot.wait_for('message', check=from_this_channel, timeout=60)
         except asyncio.TimeoutError:
@@ -50,7 +51,7 @@ class Poker:
                 await chips_question_msg.delete()
             elif msg.content == 'cancel':
                 return await ctx.send('Tournament setup canceled')
-        
+
         # INVITE FRIENDS
         member_question_msg = await ctx.send(self.member_question.format(
             member_list='\n'.join(map(str, self.tournaments[ctx.author]['settings']['players']))))
@@ -68,9 +69,9 @@ class Poker:
             else:
                 await msg.add_reaction('⚙')
                 self.invites[ctx.author][member.id] = self.bot.loop.create_task(self.send_invite(ctx, member, member_question_msg, msg))
-        
+
         self.bot.loop.create_task(poker_game(ctx, self.bot, self.tournaments[ctx.author]))
-    
+
     async def send_invite(self, ctx, member, member_question_msg, msg):
 
         def yes_or_no(reaction, user):
@@ -111,7 +112,7 @@ class Poker:
     @commands.command()
     async def stop(self, ctx):
         quit()
-        
+
 
 def get_player_string(game):
     player_string = ''
@@ -143,7 +144,7 @@ async def poker_game(ctx, bot, tournament_info):
 
     players = dict((user, Player(user)) for user in settings['players'])
     game = Game(chips=settings['chips'], players=list(players.values()))
-    
+
     player_string = get_player_string(game)
     board_message = await ctx.send('Setting up the board...')
     await board_message.add_reaction('☑')
@@ -157,11 +158,11 @@ async def poker_game(ctx, bot, tournament_info):
     while len(game.players) > 1:
         game.initialize_round()
         player_string = get_player_string(game)
-        await board_message.edit(content=board_string.format(board=' '.join(map(str, game.board)), pot=game.pot, bet=game.current_bet, 
+        await board_message.edit(content=board_string.format(board=' '.join(map(str, game.board)), pot=game.pot, bet=game.current_bet,
                                                      players=player_string))
         while not game.round_ended:
             player_string = get_player_string(game)
-            await board_message.edit(content=board_string.format(board=' '.join(map(str, game.board)), pot=game.pot, bet=game.current_bet, 
+            await board_message.edit(content=board_string.format(board=' '.join(map(str, game.board)), pot=game.pot, bet=game.current_bet,
                                                          players=player_string))
             reaction, user = await bot.wait_for('reaction_add', check=check)
             await board_message.remove_reaction(reaction, user)
@@ -187,6 +188,11 @@ async def poker_game(ctx, bot, tournament_info):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     bot = Bot('?')
     bot.add_cog(Poker(bot))
-    bot.run('NDgxNDE1MDI4MjMxMjQxNzQz.Dl2AaQ.Jhtk6v7Jd_XG2x9XIUyxnciTpLI')
+
+    with open('token.txt') as file:
+        token = file.read().strip()
+        
+    bot.run(token)
